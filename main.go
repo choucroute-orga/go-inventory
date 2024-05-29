@@ -32,17 +32,6 @@ func main() {
 		return
 	}
 
-	// Insert an ingredient
-	// ingredient := db.Ingredient{
-	// 	Name: "Cacahuete",
-	// 	Unit: "g",
-	// }
-	// _, err = coll.InsertOne(context.Background(), ingredient)
-	// if err != nil {
-	// 	logger.WithError(err).Error("Unable to insert ingredient")
-	// 	return
-	// }
-
 	val := validation.New(conf)
 	r := api.New(val)
 	v1 := r.Group(conf.ListenRoute)

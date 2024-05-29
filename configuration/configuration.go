@@ -22,8 +22,6 @@ type Configuration struct {
 	DBName              string
 	DBPassword          string
 	TranslateValidation bool
-	JWTSecret           string
-	SNCFKey             string
 }
 
 func New() *Configuration {
@@ -57,8 +55,6 @@ func New() *Configuration {
 		logger.Error("Failed to parse bool for TRANSLATE_VALIDATION")
 		os.Exit(1)
 	}
-
-	conf.JWTSecret = os.Getenv("JWT_SECRET")
 
 	return &conf
 }
