@@ -8,6 +8,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var logger = logrus.WithField("context", "api/routes")
@@ -42,10 +43,14 @@ func (api *ApiHandler) getIngredient(c echo.Context) error {
 	l := logger.WithField("request", "getIngredient")
 
 	// Retrieve the name from the request
-	name := c.Param("name")
+	id := c.Param("id")
+	idObject, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return NewBadRequestError(err)
+	}
 	// Retrieve the ingredient from the database
-	ingredient := db.FindOne(l, api.mongo, name)
-	if ingredient.Name == "" {
+	ingredient, err := db.FindById(l, api.mongo, idObject)
+	if err != nil {
 		return NewNotFoundError(errors.New("ingredient not found"))
 	}
 	return c.JSON(http.StatusOK, ingredient)
@@ -55,21 +60,31 @@ func (api *ApiHandler) insertOne(c echo.Context) error {
 	l := logger.WithField("request", "insertOne")
 
 	// Retrieve the name from the request
-	name := c.Param("name")
-	ingredient := db.FindOne(l, api.mongo, name)
-	if ingredient.Name != "" {
-		return NewConflictError(errors.New("ingredient already exists"))
+
+	var ingredient IngredientRequest
+	if err := c.Bind(&ingredient); err != nil {
+		return NewBadRequestError(err)
 	}
-	// Define a random ID for the ingredient
-	id := db.NewID()
-	ingredient = db.Ingredient{
-		ID:   id,
-		Name: name,
-		Unit: "g",
+	if err := c.Validate(ingredient); err != nil {
+		return NewBadRequestError(err)
+	}
+
+	id, err := primitive.ObjectIDFromHex(ingredient.ID)
+
+	if err != nil {
+		return NewBadRequestError(err)
+	}
+
+	// TODO Add the quantity and units to the ingredient in an array
+	ingredientDB := db.Ingredient{
+		ID:       id,
+		Name:     ingredient.Name,
+		Quantity: ingredient.Quantity,
+		Units:    ingredient.Units,
 	}
 
 	// Insert the ingredient into the database
-	err := db.InsertOne(l, api.mongo, ingredient)
+	err = db.InsertOne(l, api.mongo, ingredientDB)
 	if err != nil {
 		return NewInternalServerError(err)
 	}

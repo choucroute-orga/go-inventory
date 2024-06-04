@@ -6,6 +6,7 @@ import (
 	"inventory/api"
 	"inventory/configuration"
 	"inventory/db"
+	"inventory/messages"
 	"inventory/validation"
 
 	"github.com/sirupsen/logrus"
@@ -35,14 +36,21 @@ func main() {
 	val := validation.New(conf)
 	r := api.New(val)
 	v1 := r.Group(conf.ListenRoute)
+	amqp := messages.New(conf)
+	h := api.NewApiHandler(mongo, amqp, conf)
 
-	h := api.NewApiHandler(mongo, conf)
+	h.Register(v1)
+	go func() {
+		r.Logger.Fatal(r.Start(fmt.Sprintf("%v:%v", conf.ListenAddress, conf.ListenPort)))
+	}()
 
-	h.Register(v1, conf)
-	r.Logger.Fatal(r.Start(fmt.Sprintf("%v:%v", conf.ListenAddress, conf.ListenPort)))
+	h.ConsumesMessages()
 
 	defer func() {
 		if err := mongo.Disconnect(context.TODO()); err != nil {
+			panic(err)
+		}
+		if err := amqp.Close(); err != nil {
 			panic(err)
 		}
 	}()

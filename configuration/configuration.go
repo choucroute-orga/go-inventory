@@ -21,6 +21,7 @@ type Configuration struct {
 	DBUser              string
 	DBName              string
 	DBPassword          string
+	RabbitURI           string
 	TranslateValidation bool
 }
 
@@ -49,6 +50,12 @@ func New() *Configuration {
 	conf.DBName = os.Getenv("MONGODB_DATABASE")
 	conf.DBPassword = os.Getenv("MONGODB_PASSWORD")
 
+	rabbitPort := os.Getenv("RABBITMQ_PORT")
+	rabbitHost := os.Getenv("RABBITMQ_HOST")
+	rabbitUser := os.Getenv("RABBITMQ_DEFAULT_USER")
+	rabbitPass := os.Getenv("RABBITMQ_DEFAULT_PASS")
+
+	conf.RabbitURI = "amqp://" + rabbitUser + ":" + rabbitPass + "@" + rabbitHost + ":" + rabbitPort + "/"
 	conf.TranslateValidation, err = strconv.ParseBool(os.Getenv("TRANSLATE_VALIDATION"))
 
 	if err != nil {

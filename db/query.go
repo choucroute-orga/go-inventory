@@ -25,14 +25,14 @@ func NewID() primitive.ObjectID {
 	return primitive.NewObjectID()
 }
 
-func FindOne(l *logrus.Entry, client *mongo.Client, name string) Ingredient {
+func FindById(l *logrus.Entry, client *mongo.Client, id primitive.ObjectID) (Ingredient, error) {
 	coll := GetCollection(client, "inventory")
 	var ingredient Ingredient
-	err := coll.FindOne(context.TODO(), bson.M{"name": name}).Decode(&ingredient)
+	err := coll.FindOne(context.TODO(), bson.M{"_id": id}).Decode(&ingredient)
 	if err != nil {
-		l.WithError(err).Error("Error when trying to find the " + name + " ingredient")
+		l.WithError(err).Error("Error when trying to find the " + id.Hex() + " ingredient")
 	}
-	return ingredient
+	return ingredient, err
 }
 
 func InsertOne(l *logrus.Entry, client *mongo.Client, ingredient Ingredient) error {
