@@ -98,10 +98,6 @@ func GetDefaultConf() *configuration.Configuration {
 	return &configuration.Configuration{
 		ListenAddress: "localhost",
 		ListenPort:    "3000",
-		DBHost:        "localhost",
-		DBPort:        "27017",
-		DBName:        "inventory",
-		DBUser:        "root",
-		DBPassword:    "password",
+		DBURI:         "mongodb://root:password@localhost:27017/inventory",
 	}
 }
