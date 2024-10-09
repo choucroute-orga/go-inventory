@@ -34,7 +34,8 @@ func (api *ApiHandler) Register(v1 *echo.Group) {
 	health.GET("/ready", api.getReadyStatus)
 
 	inventory := v1.Group("/inventory")
+	inventory.GET("/ingredient", api.getIngredients)
 	inventory.GET("/ingredient/:id", api.getIngredient)
 	inventory.POST("/ingredient", api.insertOne)
-
+	inventory.DELETE("/ingredient/:id", api.deleteOne)
 }

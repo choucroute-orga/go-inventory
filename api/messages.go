@@ -8,7 +8,6 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/sirupsen/logrus"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func (api *ApiHandler) createShoppingList(l *logrus.Entry, recipe messages.AddRecipe) *[]messages.AddIngredient {
@@ -18,31 +17,49 @@ func (api *ApiHandler) createShoppingList(l *logrus.Entry, recipe messages.AddRe
 	for _, ingredient := range recipe.Ingredients {
 		// Check if the ingredient is in the inventory
 		// If not, send the ingredient to the shopping list
-		id, err := primitive.ObjectIDFromHex(ingredient.ID)
-		if err != nil {
-			logger.WithError(err).Info("Failed to convert the ID")
-			continue
-		}
-		ingredientInInventory, err := db.FindById(l, api.mongo, id)
-		l := l.WithFields(logrus.Fields{
-			"id":         ingredient.ID,
-			"ingredient": ingredientInInventory.Name,
-			"amount":     ingredient.Amount,
-			"unit":       ingredientInInventory.Units})
+
+		ingredientsInInventory, err := db.FindById(l, api.mongo, ingredient.ID)
 
 		if err != nil {
 			ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
-		} else if ingredientInInventory.Units != ingredient.Unit {
-			ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
-		} else if ingredientInInventory.Quantity < ingredient.Amount {
-			// Calculate the amount to buy
-			ingredient.Amount = ingredient.Amount - ingredientInInventory.Quantity
-			l = l.WithField("amount", ingredient.Amount)
-			ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
-		} else {
-			l = l.WithField("amount", 0)
+			continue
 		}
-		l.Debug("Ingredient treated")
+
+		// Check if we find a quantity that match the unit
+		unitFound := false
+		for _, i := range *ingredientsInInventory {
+			if i.Units == ingredient.Unit && i.Quantity < ingredient.Amount {
+				ingredient.Amount -= i.Quantity
+				ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
+			}
+
+			if i.Units == ingredient.Unit {
+				unitFound = true
+			}
+		}
+		if !unitFound {
+			ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
+		}
+
+		// l := l.WithFields(logrus.Fields{
+		// 	"id":         ingredient.ID,
+		// 	"ingredient": ingredientInInventory.Name,
+		// 	"amount":     ingredient.Amount,
+		// 	"unit":       ingredientInInventory.Units})
+
+		// if err != nil {
+		// 	ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
+		// } else if ingredientInInventory.Units != ingredient.Unit {
+		// 	ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
+		// } else if ingredientInInventory.Quantity < ingredient.Amount {
+		// 	// Calculate the amount to buy
+		// 	ingredient.Amount = ingredient.Amount - ingredientInInventory.Quantity
+		// 	l = l.WithField("amount", ingredient.Amount)
+		// 	ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
+		// } else {
+		// 	l = l.WithField("amount", 0)
+		// }
+		// l.Debug("Ingredient treated")
 	}
 
 	return &ingredientsShoppingList

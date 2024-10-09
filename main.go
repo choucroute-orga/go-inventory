@@ -20,7 +20,7 @@ func main() {
 	logger.Info("Cacahuete API Starting...")
 
 	conf := configuration.New()
-
+	logger.Logger.SetLevel(conf.LogLevel)
 	mongo, err := db.New(conf)
 	if err != nil {
 		logger.WithError(err).Error("Unable to ping database to check connection.")
