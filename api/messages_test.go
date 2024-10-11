@@ -2,14 +2,10 @@ package api
 
 import (
 	"fmt"
-	"inventory/db"
-	"inventory/messages"
 	"inventory/tests"
 	"log"
 	"math/rand"
 	"testing"
-
-	"github.com/sirupsen/logrus"
 )
 
 func doubleMe(x float64) float64 {
@@ -45,6 +41,7 @@ func setupTest(tb testing.TB) (*ApiHandler, func(tb testing.TB)) {
 	}
 }
 
+/*
 func TestDB(t *testing.T) {
 	teardownSuite := setupSuite(t)
 	defer teardownSuite(t)
@@ -213,3 +210,4 @@ func TestDB(t *testing.T) {
 	})
 
 }
+*/

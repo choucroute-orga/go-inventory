@@ -2,12 +2,12 @@ package api
 
 import (
 	"context"
-	"errors"
 	"inventory/db"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var logger = logrus.WithField("context", "api/routes")
@@ -16,8 +16,8 @@ func (api *ApiHandler) getAliveStatus(c echo.Context) error {
 	l := logger.WithField("request", "getAliveStatus")
 	status := NewHealthResponse(LiveStatus)
 	if err := c.Bind(status); err != nil {
-		FailOnError(l, err, "Response binding failed")
-		return NewInternalServerError(err)
+		FailOnError(l, err)
+		return NewInternalServerError(err.Error())
 	}
 	l.WithFields(logrus.Fields{
 		"action": "getStatus",
@@ -29,9 +29,9 @@ func (api *ApiHandler) getAliveStatus(c echo.Context) error {
 
 func (api *ApiHandler) getReadyStatus(c echo.Context) error {
 	l := logger.WithField("request", "getReadyStatus")
-	err := db.GetCollection(api.mongo, "inventory").Database().Client().Ping(context.Background(), nil)
+	err := db.GetIngredientCollection(api.mongo).Database().Client().Ping(context.Background(), nil)
+	WarnOnError(l, err)
 	if err != nil {
-		WarnOnError(l, err, "Unable to ping database to check connection.")
 		return c.JSON(http.StatusServiceUnavailable, NewHealthResponse(NotReadyStatus))
 	}
 
@@ -40,77 +40,111 @@ func (api *ApiHandler) getReadyStatus(c echo.Context) error {
 
 func (api *ApiHandler) getIngredients(c echo.Context) error {
 	l := logger.WithField("request", "getIngredients")
-	ingredients, err := db.GetAll(l, api.mongo)
-	if err != nil {
-		return NewInternalServerError(err)
+
+	// TODO Check if we retrieve the userId from the request like this
+	userId := c.QueryParam("userId")
+	if userId == "" {
+		return NewBadRequestError("userId is required")
 	}
-	return c.JSON(http.StatusOK, ingredients)
+
+	inventories, err := db.GetAll(l, api.mongo, userId)
+
+	if err != nil {
+		return NewInternalServerError(err.Error())
+	}
+
+	if inventories == nil {
+		inventories = make([]db.UserInventory, 0)
+	}
+
+	return c.JSON(http.StatusOK, NewAllIngredientsResponse(&inventories))
 }
 
+// getIngredient handles GET /inventory/ingredient/:id
 func (api *ApiHandler) getIngredient(c echo.Context) error {
 	l := logger.WithField("request", "getIngredient")
 
-	// Retrieve the name from the request
-	id := c.Param("id")
-
-	// Retrieve the ingredient from the database
-	ingredients, err := db.FindById(l, api.mongo, id)
-	if err != nil {
-		return NewNotFoundError(errors.New("ingredient not found"))
+	userId := c.QueryParam("userId")
+	if userId == "" {
+		return NewBadRequestError("userId is required")
 	}
-	ingredient := NewIngredientResponse(ingredients)
-	return c.JSON(http.StatusOK, &ingredient)
+
+	id := c.Param("id")
+	inventory, err := db.GetOne(l, api.mongo, userId, id)
+	if err != nil {
+		return NewInternalServerError(err.Error())
+	}
+
+	if inventory == nil {
+		return NewNotFoundError("Inventory item not found")
+	}
+
+	return c.JSON(http.StatusOK, NewIngredientResponse(inventory))
 }
 
+// insertOne handles POST /inventory/ingredient
 func (api *ApiHandler) insertOne(c echo.Context) error {
 	l := logger.WithField("request", "insertOne")
 
-	// Retrieve the name from the request
-
-	var ingredient IngredientRequest
-	if err := c.Bind(&ingredient); err != nil {
-		return NewBadRequestError(err)
-	}
-	if err := c.Validate(ingredient); err != nil {
-		return NewBadRequestError(err)
+	var inventory PostIngredientRequest
+	if err := c.Bind(&inventory); err != nil {
+		return NewBadRequestError(err.Error())
 	}
 
-	ingredientDB, _ := db.FindByIdAndUnit(l, api.mongo, ingredient.ID, ingredient.Unit)
-	if ingredientDB != nil {
-		ingredientDB.Quantity += ingredient.Amount
-		if err := db.UpdateOne(l, api.mongo, *ingredientDB); err != nil {
-			return NewInternalServerError(err)
-		}
-		return c.JSON(http.StatusOK, ingredient)
+	if err := c.Validate(inventory); err != nil {
+		return NewUnprocessableEntityError(err.Error())
 	}
 
-	// TODO Add the quantity and units to the ingredient in an array
-	ingredientDB = &db.Ingredient{
-		ID:           db.NewID(),
-		IngredientID: ingredient.ID,
-		Name:         ingredient.Name,
-		Quantity:     ingredient.Amount,
-		Units:        ingredient.Unit,
+	result, err := db.InsertOne(l, api.mongo, NewIngredientInventory(&inventory))
+	if err != nil {
+		return NewInternalServerError(err.Error())
 	}
 
-	// Insert the ingredient into the database
-	if err := db.InsertOne(l, api.mongo, *ingredientDB); err != nil {
-		return NewInternalServerError(err)
-	}
-	return c.JSON(http.StatusOK, ingredient)
-
+	return c.JSON(http.StatusCreated, NewIngredientResponse(result))
 }
 
-// Delete by quantity and unit
+// updateOne handles PUT /inventory/ingredient/:id
+func (api *ApiHandler) updateOne(c echo.Context) error {
+	l := logger.WithField("request", "updateOne")
+
+	var ingredient PutIngredientRequest
+	if err := c.Bind(&ingredient); err != nil {
+		return NewBadRequestError(err.Error())
+	}
+
+	if err := c.Validate(ingredient); err != nil {
+		return NewUnprocessableEntityError(err.Error())
+	}
+	inventory := NewIngredientInventoryFromPut(&ingredient)
+	result, err := db.UpdateOne(l, api.mongo, inventory)
+	if err != nil {
+		return NewInternalServerError(err.Error())
+	}
+
+	if result == nil {
+		return NewNotFoundError("Inventory item not found")
+	}
+
+	return c.JSON(http.StatusOK, NewIngredientResponse(result))
+}
+
+// deleteOne handles DELETE /inventory/ingredient/:id
 func (api *ApiHandler) deleteOne(c echo.Context) error {
 	l := logger.WithField("request", "deleteOne")
-
-	// Retrieve the name from the request
-	id := c.Param("id")
-
-	// Delete the ingredient from the database
-	if err := db.DeleteOne(l, api.mongo, id); err != nil {
-		return NewInternalServerError(err)
+	var delete DeleteIngredientRequest
+	if err := c.Bind(&delete); err != nil {
+		return NewBadRequestError(err.Error())
 	}
+	if err := c.Validate(delete); err != nil {
+		return NewUnprocessableEntityError(err.Error())
+	}
+
+	if err := db.DeleteOne(l, api.mongo, delete.UserID, delete.ID); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return NewNotFoundError("Inventory item not found")
+		}
+		return NewInternalServerError(err.Error())
+	}
+
 	return c.NoContent(http.StatusNoContent)
 }

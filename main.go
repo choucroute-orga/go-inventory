@@ -17,7 +17,7 @@ var logger = logrus.WithFields(logrus.Fields{
 })
 
 func main() {
-	logger.Info("Cacahuete API Starting...")
+	logger.Info("Inventory API Starting...")
 
 	conf := configuration.New()
 	logger.Logger.SetLevel(conf.LogLevel)
@@ -27,7 +27,7 @@ func main() {
 		return
 	}
 
-	coll := db.GetCollection(mongo, "inventory")
+	coll := db.GetIngredientCollection(mongo)
 	if coll == nil {
 		logger.Error("Unable to get collection")
 		return

@@ -2,13 +2,13 @@ package db
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var loger = logrus.WithFields(logrus.Fields{
@@ -19,93 +19,145 @@ func NewID() primitive.ObjectID {
 	return primitive.NewObjectIDFromTimestamp(time.Now())
 }
 
-func GetAll(l *logrus.Entry, client *mongo.Client) ([]Ingredient, error) {
-	coll := GetCollection(client, "inventory")
-	cursor, err := coll.Find(context.Background(), bson.M{})
+// GetAll retrieves all ingredients for a user
+func GetAll(l *logrus.Entry, client *mongo.Client, userId string) ([]UserInventory, error) {
+	collection := GetIngredientCollection(client)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{"userId": userId}
+	cursor, err := collection.Find(ctx, filter)
 	if err != nil {
-		l.WithError(err).Error("Error when trying to find all ingredients")
+		l.WithError(err).Error("Failed to fetch user inventory")
 		return nil, err
 	}
-	ingredients := make([]Ingredient, 0)
-	err = cursor.All(context.Background(), &ingredients)
-	if err != nil {
-		l.WithError(err).Error("Error when trying to decode all ingredients")
+	defer cursor.Close(ctx)
+
+	// TODO Check if it's good
+	inventories := make([]UserInventory, 0)
+	if err = cursor.All(ctx, &inventories); err != nil {
+		l.WithError(err).Error("Failed to decode user inventory")
 		return nil, err
 	}
-	return ingredients, nil
+
+	return inventories, nil
 }
 
-func FindById(l *logrus.Entry, client *mongo.Client, id string) (*[]Ingredient, error) {
-	coll := GetCollection(client, "inventory")
-	ingredients := make([]Ingredient, 0)
-	filter := map[string]string{"ingredient_id": id}
-	cursor, err := coll.Find(context.Background(), filter)
+// GetOne retrieves a single inventory item by ID
+func GetOne(l *logrus.Entry, client *mongo.Client, userId string, ingredientId string) (*UserInventory, error) {
+	collection := GetIngredientCollection(client)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
+	var inventory UserInventory
+	err := collection.FindOne(ctx, bson.M{
+		"ingredientId": ingredientId,
+		"userId":       userId,
+	}).Decode(&inventory)
 	if err != nil {
-		l.WithError(err).Error("Error when trying to find ingredient by ID")
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		l.WithError(err).Error("Failed to fetch inventory item")
 		return nil, err
 	}
-	// Decode all the ingredients
-	err = cursor.All(context.Background(), &ingredients)
-	if err != nil {
-		l.WithError(err).Error("Error when trying to decode all ingredients")
+
+	return &inventory, nil
+}
+
+// func FindByIdAndUnit(l *logrus.Entry, client *mongo.Client, id string, unit string) (*Ingredient, error) {
+// 	coll := GetCollection(client, "inventory")
+// 	filter := map[string]string{"ingredient_id": id, "units": unit}
+// 	ingredient := Ingredient{}
+// 	err := coll.FindOne(context.Background(), filter).Decode(&ingredient)
+// 	if err != nil {
+// 		l.WithError(err).Error("Error when trying to find ingredient by ID and unit")
+// 		return nil, err
+// 	}
+// 	return &ingredient, nil
+// }
+
+// UpdateOne updates an existing inventory item
+// TODO CHange the format of the update
+func UpdateOne(l *logrus.Entry, client *mongo.Client, update *UserInventory) (*UserInventory, error) {
+	collection := GetIngredientCollection(client)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
+	defer cancel()
+	update.UpdatedAt = time.Now()
+
+	filter := bson.M{
+		"ingredientId": update.IngredientID,
+		"userId":       update.UserID,
+	}
+
+	// Create a map to hold the fields to update
+	updateFields := bson.M{
+		"quantity":  update.Quantity,
+		"unit":      update.Unit,
+		"updatedAt": update.UpdatedAt,
+	}
+
+	// Only add name to update fields if it's not empty
+	if update.Name != "" {
+		updateFields["name"] = update.Name
+	}
+
+	updateDoc := bson.M{
+		"$set": updateFields,
+	}
+
+	result := collection.FindOneAndUpdate(ctx, filter, updateDoc, options.FindOneAndUpdate().SetReturnDocument(options.After))
+
+	var updated UserInventory
+	if err := result.Decode(&updated); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		l.WithError(err).Error("Failed to update inventory item")
 		return nil, err
 	}
-	return &ingredients, nil
+
+	return &updated, nil
 }
 
-func FindByIdAndUnit(l *logrus.Entry, client *mongo.Client, id string, unit string) (*Ingredient, error) {
-	coll := GetCollection(client, "inventory")
-	filter := map[string]string{"ingredient_id": id, "units": unit}
-	ingredient := Ingredient{}
-	err := coll.FindOne(context.Background(), filter).Decode(&ingredient)
+// InsertOne creates a new inventory item
+func InsertOne(l *logrus.Entry, client *mongo.Client, inventory *UserInventory) (*UserInventory, error) {
+	collection := GetIngredientCollection(client)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	inventory.CreatedAt = now
+	inventory.UpdatedAt = now
+
+	result, err := collection.InsertOne(ctx, inventory)
 	if err != nil {
-		l.WithError(err).Error("Error when trying to find ingredient by ID and unit")
+		l.WithError(err).Error("Failed to insert inventory item")
 		return nil, err
 	}
-	return &ingredient, nil
+
+	inventory.ID = result.InsertedID.(primitive.ObjectID)
+	return inventory, nil
 }
 
-func UpdateOne(l *logrus.Entry, client *mongo.Client, ingredient Ingredient) error {
-	coll := GetCollection(client, "inventory")
-	filter := map[string]string{"ingredient_id": ingredient.IngredientID}
-	update := bson.M{"$set": ingredient}
-	res, err := coll.UpdateOne(context.TODO(), filter, update)
-	if err != nil {
-		l.WithError(err).Error("Error when trying to update ingredient")
-		return err
-	}
-	if res.MatchedCount == 0 {
-		err = errors.New("ID not found")
-		l.WithError(err).Error("Error when trying to update ingredient")
-		return err
-	}
-	return nil
-}
+func DeleteOne(l *logrus.Entry, client *mongo.Client, userId string, ingredientId string) error {
+	collection := GetIngredientCollection(client)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-func InsertOne(l *logrus.Entry, client *mongo.Client, ingredient Ingredient) error {
-	coll := GetCollection(client, "inventory")
-	_, err := coll.InsertOne(context.TODO(), ingredient)
+	result, err := collection.DeleteOne(ctx, bson.M{
+		"ingredientId": ingredientId,
+		"userId":       userId,
+	})
 	if err != nil {
-		l.WithError(err).Error("Error when trying to insert the " + ingredient.Name + " ingredient")
+		l.WithError(err).Error("Failed to delete inventory item")
 		return err
 	}
-	return nil
-}
 
-// Delete with the ID instead of IngredientID
-func DeleteOne(l *logrus.Entry, client *mongo.Client, id string) error {
-	coll := GetCollection(client, "inventory")
-	filter := map[string]string{"ingredient_id": id}
-	row, err := coll.DeleteMany(context.TODO(), filter)
-	if err != nil {
-		l.WithError(err).Error("Error when trying to delete the " + id + " ingredient")
-		return err
+	if result.DeletedCount == 0 {
+		return mongo.ErrNoDocuments
 	}
-	if row.DeletedCount == 0 {
-		err := errors.New("ingredient id not found")
-		l.Error(err.Error())
-		return err
-	}
+
 	return nil
 }

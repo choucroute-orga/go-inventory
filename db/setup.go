@@ -4,7 +4,12 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+const (
+	DatabaseName             = "inventory"
+	IngredientCollectionName = "ingredient"
+)
+
 // getting database collections
-func GetCollection(client *mongo.Client, collectionName string) *mongo.Collection {
-	return client.Database("inventory").Collection(collectionName)
+func GetIngredientCollection(client *mongo.Client) *mongo.Collection {
+	return client.Database(DatabaseName).Collection(IngredientCollectionName)
 }

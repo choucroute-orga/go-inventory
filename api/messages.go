@@ -10,59 +10,93 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (api *ApiHandler) createShoppingList(l *logrus.Entry, recipe messages.AddRecipe) *[]messages.AddIngredient {
+func (api *ApiHandler) createShoppingList(l *logrus.Entry, recipe messages.AddRecipe) *[]messages.NeededIngredientShoppingList {
+	l = logger.WithField("context", "createShoppingList")
+	var shoppingList []messages.NeededIngredientShoppingList
 
-	ingredientsShoppingList := []messages.AddIngredient{}
+	// Get user's current inventory
+	userInventory, err := db.GetAll(l, api.mongo, recipe.UserID)
+	if err != nil {
+		l.WithError(err).Error("Failed to fetch user inventory")
+		return &shoppingList
+	}
 
-	for _, ingredient := range recipe.Ingredients {
-		// Check if the ingredient is in the inventory
-		// If not, send the ingredient to the shopping list
+	// Create a map for quick inventory lookup
+	inventoryMap := make(map[string]db.UserInventory)
+	for _, item := range userInventory {
+		inventoryMap[item.IngredientID] = item
+	}
 
-		ingredientsInInventory, err := db.FindById(l, api.mongo, ingredient.ID)
-
+	// Process each ingredient in the recipe
+	for _, recipeIngredient := range recipe.Ingredients {
+		// Convert recipe ingredient quantity to base unit
+		res, err := ConvertToBaseUnitFromRequest(recipeIngredient.Amount, recipeIngredient.Unit)
+		recipeQtyBase, baseUnit := res.Quantity, res.Unit
 		if err != nil {
-			ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
+			l.WithError(err).WithFields(logrus.Fields{
+				"ingredientId": recipeIngredient.ID,
+				"unit":         recipeIngredient.Unit,
+			}).Error("Failed to convert recipe ingredient to base unit")
 			continue
 		}
 
-		// Check if we find a quantity that match the unit
-		unitFound := false
-		for _, i := range *ingredientsInInventory {
-			if i.Units == ingredient.Unit && i.Quantity < ingredient.Amount {
-				ingredient.Amount -= i.Quantity
-				ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
-			}
-
-			if i.Units == ingredient.Unit {
-				unitFound = true
-			}
-		}
-		if !unitFound {
-			ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
+		// Check if user has this ingredient
+		userItem, exists := inventoryMap[recipeIngredient.ID]
+		if !exists {
+			// User doesn't have this ingredient at all - add full amount converted to shopping list
+			messageConv := roundBaseUnit(res)
+			finalQty, finalUnit := messageConv.Quantity, messageConv.Unit
+			shoppingList = append(shoppingList, messages.NeededIngredientShoppingList{
+				ID:     recipeIngredient.ID,
+				Amount: finalQty,
+				Unit:   finalUnit,
+			})
+			continue
 		}
 
-		// l := l.WithFields(logrus.Fields{
-		// 	"id":         ingredient.ID,
-		// 	"ingredient": ingredientInInventory.Name,
-		// 	"amount":     ingredient.Amount,
-		// 	"unit":       ingredientInInventory.Units})
+		// Convert user's inventory quantity to the same base unit
+		res, err = ConvertToBaseUnit(userItem.Quantity, userItem.Unit)
+		userQtyBase, userBaseUnit := res.Quantity, res.Unit
+		if err != nil {
+			l.WithError(err).WithFields(logrus.Fields{
+				"ingredientId": recipeIngredient.ID,
+				"unit":         userItem.Unit,
+			}).Error("Failed to convert user inventory to base unit")
+			continue
+		}
 
-		// if err != nil {
-		// 	ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
-		// } else if ingredientInInventory.Units != ingredient.Unit {
-		// 	ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
-		// } else if ingredientInInventory.Quantity < ingredient.Amount {
-		// 	// Calculate the amount to buy
-		// 	ingredient.Amount = ingredient.Amount - ingredientInInventory.Quantity
-		// 	l = l.WithField("amount", ingredient.Amount)
-		// 	ingredientsShoppingList = append(ingredientsShoppingList, ingredient)
-		// } else {
-		// 	l = l.WithField("amount", 0)
-		// }
-		// l.Debug("Ingredient treated")
+		// Check if units are compatible
+		if (baseUnit == db.UnitMl && userBaseUnit != db.UnitMl) ||
+			(baseUnit == db.UnitG && userBaseUnit != db.UnitG) ||
+			(baseUnit == db.UnitItem && userBaseUnit != db.UnitItem) {
+			l.WithFields(logrus.Fields{
+				"recipeUnit": baseUnit,
+				"userUnit":   userBaseUnit,
+			}).Error("Incompatible units")
+			continue
+		}
+
+		// Calculate if more is needed
+		if userQtyBase < recipeQtyBase {
+			neededQty := recipeQtyBase - userQtyBase
+
+			// Convert back to the original recipe unit if possible
+			if err != nil {
+				l.WithError(err).Error("Failed to convert back to recipe unit")
+				continue
+			}
+			conversionMessage := roundBaseUnit(ConversionResult{neededQty, baseUnit})
+			finalQty, finalUnit := conversionMessage.Quantity, conversionMessage.Unit
+
+			shoppingList = append(shoppingList, messages.NeededIngredientShoppingList{
+				ID:     recipeIngredient.ID,
+				Amount: finalQty,
+				Unit:   finalUnit,
+			})
+		}
 	}
 
-	return &ingredientsShoppingList
+	return &shoppingList
 }
 
 func (api *ApiHandler) ConsumesMessages() {
@@ -121,11 +155,15 @@ func (api *ApiHandler) consumesMessages() {
 		// Check all ingredients and the amount
 		ingredientsShoppingList := api.createShoppingList(l, recipe)
 
-		recipe.Ingredients = *ingredientsShoppingList
+		sendRecipe := messages.SendRecipe{
+			ID:          recipe.ID,
+			UserID:      recipe.UserID,
+			Ingredients: *ingredientsShoppingList,
+		}
 		// Publish the ingredients to the shopping list
 
 		// Convert the error into a JSON
-		jsonMessage, err := json.Marshal(recipe)
+		jsonMessage, err := json.Marshal(sendRecipe)
 		if err != nil {
 			logger.WithError(err).Error("Failed to marshal the recipe")
 		}

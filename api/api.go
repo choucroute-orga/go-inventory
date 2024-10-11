@@ -37,5 +37,6 @@ func (api *ApiHandler) Register(v1 *echo.Group) {
 	inventory.GET("/ingredient", api.getIngredients)
 	inventory.GET("/ingredient/:id", api.getIngredient)
 	inventory.POST("/ingredient", api.insertOne)
-	inventory.DELETE("/ingredient/:id", api.deleteOne)
+	inventory.PUT("/ingredient/:id", api.updateOne)
+	inventory.DELETE("/ingredient/:id/user/:userId", api.deleteOne)
 }
