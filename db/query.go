@@ -56,7 +56,7 @@ func GetOne(l *logrus.Entry, client *mongo.Client, userId string, ingredientId s
 	}).Decode(&inventory)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, nil
+			return nil, err
 		}
 		l.WithError(err).Error("Failed to fetch inventory item")
 		return nil, err

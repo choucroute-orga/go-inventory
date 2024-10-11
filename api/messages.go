@@ -80,11 +80,6 @@ func (api *ApiHandler) createShoppingList(l *logrus.Entry, recipe messages.AddRe
 		if userQtyBase < recipeQtyBase {
 			neededQty := recipeQtyBase - userQtyBase
 
-			// Convert back to the original recipe unit if possible
-			if err != nil {
-				l.WithError(err).Error("Failed to convert back to recipe unit")
-				continue
-			}
 			conversionMessage := roundBaseUnit(ConversionResult{neededQty, baseUnit})
 			finalQty, finalUnit := conversionMessage.Quantity, conversionMessage.Unit
 

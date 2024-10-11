@@ -11,9 +11,8 @@ const (
 	// Volume conversions (to ml)
 	tspToMl  = 4.929
 	tbspToMl = 14.787
-	csToMl   = 250.0
 	lToMl    = 1000.0
-
+	cupToMl  = 236.588
 	// Weight conversions (to g)
 	kgToG = 1000.0
 )
@@ -38,9 +37,9 @@ func ConvertToBaseUnitFromRequest(quantity float64, unit messages.UnitRequest) (
 			Quantity: quantity * tbspToMl,
 			Unit:     db.UnitMl,
 		}, nil
-	case messages.UnitCs:
+	case messages.UnitCup:
 		return ConversionResult{
-			Quantity: quantity * csToMl,
+			Quantity: quantity * cupToMl,
 			Unit:     db.UnitMl,
 		}, nil
 	case messages.UnitL:
@@ -78,13 +77,6 @@ func ConvertToBaseUnitFromRequest(quantity float64, unit messages.UnitRequest) (
 	}
 }
 
-func calculateConversionResult(quantity float64, ratio float64) ConversionResult {
-	return ConversionResult{
-		Quantity: quantity * ratio,
-		Unit:     db.UnitG,
-	}
-}
-
 // convertToBaseUnit converts a quantity to its base unit (g, ml or item)
 func ConvertToBaseUnit(quantity float64, unit db.UnitType) (ConversionResult, error) {
 	switch unit {
@@ -93,8 +85,8 @@ func ConvertToBaseUnit(quantity float64, unit db.UnitType) (ConversionResult, er
 		return ConversionResult{Quantity: quantity * tspToMl, Unit: db.UnitMl}, nil
 	case "tbsp":
 		return ConversionResult{Quantity: quantity * tbspToMl, Unit: db.UnitMl}, nil
-	case "cs":
-		return ConversionResult{Quantity: quantity * csToMl, Unit: db.UnitMl}, nil
+	case "cup":
+		return ConversionResult{Quantity: quantity * cupToMl, Unit: db.UnitMl}, nil
 	case "l":
 		return ConversionResult{Quantity: quantity * lToMl, Unit: db.UnitMl}, nil
 	case "ml":

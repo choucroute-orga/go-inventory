@@ -11,7 +11,7 @@ const (
 	UnitL     UnitRequest = "l"
 	UnitTsp   UnitRequest = "tsp"
 	UnitTbsp  UnitRequest = "tbsp"
-	UnitCs    UnitRequest = "cs"
+	UnitCup   UnitRequest = "cup"
 )
 
 type Ingredient struct {

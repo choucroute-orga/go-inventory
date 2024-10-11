@@ -60,7 +60,7 @@ func InitTestDocker(exposedPort string) (*mongo.Client, *dockertest.Pool, *docke
 			return err
 		}
 		// Add duration to the context
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		return client.Ping(ctx, nil)
 	})
@@ -87,10 +87,7 @@ func CloseTestDocker(client *mongo.Client, pool *dockertest.Pool, resource *dock
 func SeedDatabase(mongo *mongo.Client) {
 	// Create the recipe database and collection
 	recipeDB := mongo.Database("inventory")
-	res := recipeDB.RunCommand(context.Background(), bson.D{{"create", "inventory"}})
-	if res.Err() != nil {
-		log.Panic("Error creating recipe collection: ", res.Err())
-	}
+	recipeDB.RunCommand(context.Background(), bson.D{{"create", "inventory"}})
 
 }
 

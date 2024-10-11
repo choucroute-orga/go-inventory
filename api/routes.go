@@ -95,7 +95,11 @@ func (api *ApiHandler) insertOne(c echo.Context) error {
 		return NewUnprocessableEntityError(err.Error())
 	}
 
-	result, err := db.InsertOne(l, api.mongo, NewIngredientInventory(&inventory))
+	inventoryIng, err := NewIngredientInventory(&inventory)
+	if err != nil {
+		return NewUnprocessableEntityError(err.Error())
+	}
+	result, err := db.InsertOne(l, api.mongo, inventoryIng)
 	if err != nil {
 		return NewInternalServerError(err.Error())
 	}
@@ -115,7 +119,10 @@ func (api *ApiHandler) updateOne(c echo.Context) error {
 	if err := c.Validate(ingredient); err != nil {
 		return NewUnprocessableEntityError(err.Error())
 	}
-	inventory := NewIngredientInventoryFromPut(&ingredient)
+	inventory, err := NewIngredientInventoryFromPut(&ingredient)
+	if err != nil {
+		return NewBadRequestError(err.Error())
+	}
 	result, err := db.UpdateOne(l, api.mongo, inventory)
 	if err != nil {
 		return NewInternalServerError(err.Error())

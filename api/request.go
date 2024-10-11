@@ -10,7 +10,7 @@ type PostIngredientRequest struct {
 	UserID string               `json:"userId" validate:"required"`
 	Name   string               `json:"name" validate:"omitempty"`
 	Amount float64              `json:"amount" validate:"required,min=0.1"`
-	Unit   messages.UnitRequest `json:"unit" validate:"oneof=i is cs tbsp tsp g kg ml l"`
+	Unit   messages.UnitRequest `json:"unit" validate:"oneof=i is cup tbsp tsp g kg ml l"`
 }
 
 // It's the same than the post, just that the ID is in the URL
@@ -19,7 +19,7 @@ type PutIngredientRequest struct {
 	UserID string               `json:"userId" validate:"required"`
 	Name   string               `json:"name" validate:"omitempty"`
 	Amount float64              `json:"amount" validate:"required,min=0.1"`
-	Unit   messages.UnitRequest `json:"unit" validate:"oneof=i is cs tbsp tsp g kg ml l"`
+	Unit   messages.UnitRequest `json:"unit" validate:"oneof=i is cup tbsp tsp g kg ml l"`
 }
 
 type DeleteIngredientRequest struct {
@@ -27,10 +27,14 @@ type DeleteIngredientRequest struct {
 	UserID string `param:"userId" validate:"required"`
 }
 
-func NewIngredientInventoryFromPut(ingredient *PutIngredientRequest) *db.UserInventory {
+func NewIngredientInventoryFromPut(ingredient *PutIngredientRequest) (*db.UserInventory, error) {
 
 	// Convert the ingredient to the base unit
-	res, _ := ConvertToBaseUnitFromRequest(ingredient.Amount, ingredient.Unit)
+	res, err := ConvertToBaseUnitFromRequest(ingredient.Amount, ingredient.Unit)
+
+	if err != nil {
+		return nil, err
+	}
 
 	return &db.UserInventory{
 		IngredientID: ingredient.ID,
@@ -38,13 +42,17 @@ func NewIngredientInventoryFromPut(ingredient *PutIngredientRequest) *db.UserInv
 		Name:         ingredient.Name,
 		Quantity:     res.Quantity,
 		Unit:         res.Unit,
-	}
+	}, nil
 }
 
-func NewIngredientInventory(ingredient *PostIngredientRequest) *db.UserInventory {
+func NewIngredientInventory(ingredient *PostIngredientRequest) (*db.UserInventory, error) {
 
 	// Convert the ingredient to the base unit
-	res, _ := ConvertToBaseUnitFromRequest(ingredient.Amount, ingredient.Unit)
+	res, err := ConvertToBaseUnitFromRequest(ingredient.Amount, ingredient.Unit)
+
+	if err != nil {
+		return nil, err
+	}
 
 	return &db.UserInventory{
 		IngredientID: ingredient.ID,
@@ -52,5 +60,5 @@ func NewIngredientInventory(ingredient *PostIngredientRequest) *db.UserInventory
 		Name:         ingredient.Name,
 		Quantity:     res.Quantity,
 		Unit:         res.Unit,
-	}
+	}, nil
 }
