@@ -29,83 +29,20 @@ func New(conf *configuration.Configuration) *amqp.Connection {
 	return conn
 }
 
-func GetInventoryIngredientQueue(conn *amqp.Connection) *amqp.Queue {
-	ch, err := conn.Channel()
+func GetDeadLetterQueue(conn *amqp.Connection) *amqp.Queue {
+	ch, err := OpenChannel(conn)
 	if err != nil {
 		logger.WithError(err).Error("Failed to open a channel")
+		return nil
 	}
 
 	q, err := ch.QueueDeclare(
-		InventoryAddIngredientShoppingList, // name
-		true,                               // durable
-		false,                              // delete when unused
-		false,                              // exclusive
-		false,                              // no-wait
-		nil,                                // arguments
-	)
-	if err != nil {
-		logger.WithError(err).Error("Failed to declare a queue")
-	}
-
-	return &q
-}
-
-func GetShoppingListIngredientQueue(conn *amqp.Connection) *amqp.Queue {
-	ch, err := conn.Channel()
-	if err != nil {
-		logger.WithError(err).Error("Failed to open a channel")
-	}
-
-	q, err := ch.QueueDeclare(
-		AddIngredientShoppingList, // name
-		true,                      // durable
-		false,                     // delete when unused
-		false,                     // exclusive
-		false,                     // no-wait
-		nil,                       // arguments
-	)
-	if err != nil {
-		logger.WithError(err).Error("Failed to declare a queue")
-	}
-
-	return &q
-}
-
-func GetInventoryRecipeQueue(conn *amqp.Connection) *amqp.Queue {
-	ch, err := conn.Channel()
-	if err != nil {
-		logger.WithError(err).Error("Failed to open a channel")
-	}
-
-	q, err := ch.QueueDeclare(
-		InventoryAddRecipesShoppingList, // name
-		true,                            // durable
-		false,                           // delete when unused
-		false,                           // exclusive
-		false,                           // no-wait
-		nil,                             // arguments
-	)
-	if err != nil {
-		logger.WithError(err).Error("Failed to declare a queue")
-	}
-
-	return &q
-}
-
-func GetShoppingListRecipeQueue(conn *amqp.Connection) *amqp.Queue {
-	ch, err := conn.Channel()
-	if err != nil {
-		logger.WithError(err).Error("Failed to open a channel")
-	}
-	defer ch.Close()
-
-	q, err := ch.QueueDeclare(
-		AddRecipesShoppingList, // name
-		true,                   // durable
-		false,                  // delete when unused
-		false,                  // exclusive
-		false,                  // no-wait
-		nil,                    // arguments
+		DeadLetterQueueName, // name
+		true,                // durable
+		false,               // delete when unused
+		false,               // exclusive
+		false,               // no-wait
+		nil,                 // arguments
 	)
 	if err != nil {
 		logger.WithError(err).Error("Failed to declare a queue")

@@ -19,6 +19,7 @@ type Configuration struct {
 	DBURI               string
 	RabbitURI           string
 	TranslateValidation bool
+	OtelServiceName     string
 }
 
 func New() *Configuration {
@@ -58,6 +59,11 @@ func New() *Configuration {
 	if err != nil {
 		logger.Error("Failed to parse bool for TRANSLATE_VALIDATION")
 		os.Exit(1)
+	}
+
+	conf.OtelServiceName = os.Getenv("OTEL_SERVICE_NAME")
+	if len(conf.OtelServiceName) < 1 {
+		logger.Error("OTEL_SERVICE_NAME is not set")
 	}
 
 	return &conf

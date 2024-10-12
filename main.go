@@ -20,6 +20,7 @@ var logger = logrus.WithFields(logrus.Fields{
 })
 
 func main() {
+	configuration.SetupLogging()
 	logger.Info("Inventory API Starting...")
 
 	conf := configuration.New()
@@ -43,10 +44,14 @@ func main() {
 	h := api.NewApiHandler(mongo, amqp, conf)
 
 	h.Register(v1)
+	tp, _ := api.InitOtel()
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
 		cancel()
+		if err := tp.Shutdown(context.Background()); err != nil {
+			logger.WithError(err).Error("Error shutting down tracer provider")
+		}
 		if err := mongo.Disconnect(context.TODO()); err != nil {
 			logger.WithError(err).Error("Error closing mongo connection")
 		}

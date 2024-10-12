@@ -373,7 +373,8 @@ func TestDB(t *testing.T) {
 				db.InsertOne(l, api.mongo, r1)
 				db.InsertOne(l, api.mongo, r2)
 				db.InsertOne(l, api.mongo, r3)
-				iSl := *api.createShoppingList(l, addRecipe)
+				ctx := context.Background()
+				iSl := *api.createShoppingList(ctx, l, addRecipe)
 
 				// Check if the shopping list is correct
 				if len(iSl) != 4 {
