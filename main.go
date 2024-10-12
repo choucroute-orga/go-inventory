@@ -8,6 +8,9 @@ import (
 	"inventory/db"
 	"inventory/messages"
 	"inventory/validation"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
 )
@@ -40,18 +43,36 @@ func main() {
 	h := api.NewApiHandler(mongo, amqp, conf)
 
 	h.Register(v1)
-	go func() {
-		r.Logger.Fatal(r.Start(fmt.Sprintf("%v:%v", conf.ListenAddress, conf.ListenPort)))
-	}()
-
-	h.ConsumesMessages()
+	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
+		cancel()
 		if err := mongo.Disconnect(context.TODO()); err != nil {
-			panic(err)
+			logger.WithError(err).Error("Error closing mongo connection")
 		}
 		if err := amqp.Close(); err != nil {
-			panic(err)
+			logger.WithError(err).Error("Error closing amqp connection")
 		}
 	}()
+
+	go func() {
+		h.ConsumeAddRecipeMessages(ctx)
+	}()
+
+	go func() {
+		h.ConsumeAddIngredientMessage(ctx)
+	}()
+
+	// Graceful shutdown
+	go func() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		<-sigCh
+		logger.Info("Shutting down gracefully...")
+		cancel()
+	}()
+
+	if err := r.Start(fmt.Sprintf("%v:%v", conf.ListenAddress, conf.ListenPort)); err != nil {
+		logger.WithError(err).Fatal("Error starting the server")
+	}
 }

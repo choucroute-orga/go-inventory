@@ -17,7 +17,7 @@ const (
 type Ingredient struct {
 	ID     string      `param:"id" json:"id" validate:"required"`
 	Amount float64     `json:"amount" validate:"required,min=0"`
-	Unit   UnitRequest `json:"unit" validate:"oneof=i is cs tbsp tsp g kg ml l"`
+	Unit   UnitRequest `json:"unit" validate:"oneof=i is cup tbsp tsp g kg ml l"`
 }
 
 // This is the message that is received from the Gateway
@@ -55,4 +55,16 @@ type NeededIngredientShoppingList struct {
 	ID     string      `json:"id" validate:"required"`
 	Amount float64     `json:"amount" validate:"required,min=0"`
 	Unit   UnitMessage `json:"unit" validate:"required,oneof=i g ml"`
+}
+
+// Received to add ingredient to the shopping list
+type IngredientInventory struct {
+	Ingredient
+	UserID string `json:"userId" validate:"required"`
+}
+
+// Send to add ingredient to the shopping list
+type IngredientShoppingList struct {
+	NeededIngredientShoppingList
+	UserID string `json:"userId" validate:"required"`
 }
