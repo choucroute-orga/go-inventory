@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"inventory/db"
 	"net/http"
 
@@ -29,7 +28,7 @@ func (api *ApiHandler) getAliveStatus(c echo.Context) error {
 
 func (api *ApiHandler) getReadyStatus(c echo.Context) error {
 	l := logger.WithField("request", "getReadyStatus")
-	err := db.GetIngredientCollection(api.mongo).Database().Client().Ping(context.Background(), nil)
+	err := api.dbh.Ping()
 	WarnOnError(l, err)
 	if err != nil {
 		return c.JSON(http.StatusServiceUnavailable, NewHealthResponse(NotReadyStatus))
@@ -47,7 +46,7 @@ func (api *ApiHandler) getIngredients(c echo.Context) error {
 		return NewBadRequestError("userId is required")
 	}
 
-	inventories, err := db.GetAll(l, api.mongo, userId)
+	inventories, err := api.dbh.GetUserInventory(l, userId)
 
 	if err != nil {
 		return NewInternalServerError(err.Error())
@@ -70,7 +69,7 @@ func (api *ApiHandler) getIngredient(c echo.Context) error {
 	}
 
 	id := c.Param("id")
-	inventory, err := db.GetOne(l, api.mongo, userId, id)
+	inventory, err := api.dbh.GetOneUserInventory(l, userId, id)
 	if err != nil {
 		return NewInternalServerError(err.Error())
 	}
@@ -99,7 +98,7 @@ func (api *ApiHandler) insertOne(c echo.Context) error {
 	if err != nil {
 		return NewUnprocessableEntityError(err.Error())
 	}
-	result, err := db.InsertOne(l, api.mongo, inventoryIng)
+	result, err := api.dbh.InsertOneUserInventory(l, inventoryIng)
 	if err != nil {
 		return NewInternalServerError(err.Error())
 	}
@@ -123,7 +122,7 @@ func (api *ApiHandler) updateOne(c echo.Context) error {
 	if err != nil {
 		return NewBadRequestError(err.Error())
 	}
-	result, err := db.UpdateOne(l, api.mongo, inventory)
+	result, err := api.dbh.UpdateOneUserInventory(l, inventory)
 	if err != nil {
 		return NewInternalServerError(err.Error())
 	}
@@ -146,7 +145,7 @@ func (api *ApiHandler) deleteOne(c echo.Context) error {
 		return NewUnprocessableEntityError(err.Error())
 	}
 
-	if err := db.DeleteOne(l, api.mongo, delete.UserID, delete.ID); err != nil {
+	if err := api.dbh.DeleteOneUserInventory(l, delete.UserID, delete.ID); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return NewNotFoundError("Inventory item not found")
 		}

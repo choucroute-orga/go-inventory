@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+// import "buf/validate/validate.proto";
+
+option go_package = "inventory/inventory";
+package inventory;
+
+enum UnitRequest {
+    i = 0;
+    UNIT_ITEMS = 1;
+    UNIT_G = 2;
+    UNIT_KG = 3;
+    UNIT_ML = 4;
+    UNIT_L = 5;
+    UNIT_TSP = 6;
+    UNIT_TBSP = 7;
+    UNIT_CUP = 8;
+  }
+
+message PostIngredientRequest {
+  string id = 1;
+  string userId = 2;
+  string name = 3;
+  double amount = 4;
+  string unit = 5;
+}
+
+message DeleteIngredientRequest {
+  string ingredientId = 1;
+  string userId = 2;
+}
+
+// IngredientResponse is the response of a user inventory
+message IngredientResponse {
+  string id = 1;
+  string name = 2;
+  double amount = 5;
+  string unit = 6;
+  google.protobuf.Timestamp createdAt = 7;
+  google.protobuf.Timestamp updatedAt = 8; 
+}
+
+// User inventory is the inventory of a user containing an array of IngredientResponse
+message GetUserInventoryResponse {
+  repeated IngredientResponse userInventory = 1;
+}
+
+message GetInventoryRequest {
+  string userId = 1;
+}
+
+message GetIngredientRequest {
+  string ingredientId = 1;
+  string userId = 2;
+}
+
+// The Inventory service definition.
+service Inventory {
+    rpc GetUserInventory(GetInventoryRequest) returns (GetUserInventoryResponse) {}
+    rpc GetIngredient(GetIngredientRequest) returns (IngredientResponse) {}
+    rpc CreateIngredient(PostIngredientRequest)  returns (IngredientResponse) {}
+    rpc UpdateIngredient(PostIngredientRequest)  returns (IngredientResponse) {}
+    rpc DeleteIngredient(DeleteIngredientRequest) returns (google.protobuf.Empty) {}
+}

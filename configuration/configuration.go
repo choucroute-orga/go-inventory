@@ -15,6 +15,7 @@ type Configuration struct {
 	ListenPort          string
 	ListenAddress       string
 	ListenRoute         string
+	GrpcPort            int
 	LogLevel            logrus.Level
 	DBURI               string
 	RabbitURI           string
@@ -50,6 +51,12 @@ func New() *Configuration {
 	conf.ListenPort = os.Getenv("API_PORT")
 	conf.ListenAddress = os.Getenv("API_ADDRESS")
 	conf.ListenRoute = os.Getenv("API_ROUTE")
+
+	conf.GrpcPort, err = strconv.Atoi(os.Getenv("GRPC_PORT"))
+	if err != nil {
+		logger.Error("Failed to parse int for GRPC_PORT")
+		os.Exit(1)
+	}
 
 	conf.DBURI = os.Getenv("MONGODB_URI")
 	conf.RabbitURI = os.Getenv("RABBITMQ_URL")

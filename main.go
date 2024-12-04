@@ -6,6 +6,9 @@ import (
 	"inventory/api"
 	"inventory/configuration"
 	"inventory/db"
+	"inventory/grpc"
+
+	// "inventory/grpc"
 	"inventory/messages"
 	"inventory/validation"
 	"os"
@@ -30,21 +33,19 @@ func main() {
 		logger.WithError(err).Error("Unable to ping database to check connection.")
 		return
 	}
-
-	coll := db.GetIngredientCollection(mongo)
-	if coll == nil {
-		logger.Error("Unable to get collection")
+	dbh := db.NewMongoHandler(mongo)
+	if err := dbh.Ping(); err != nil {
+		logger.WithError(err).Error("Unable to ping database to check connection.")
 		return
 	}
-
 	val := validation.New(conf)
 	r := api.New(val)
 	v1 := r.Group(conf.ListenRoute)
 	amqp := messages.New(conf)
-	h := api.NewApiHandler(mongo, amqp, conf)
+	h := api.NewApiHandler(dbh, amqp, conf)
 
 	h.Register(v1)
-	tp, _ := api.InitOtel()
+	tp := api.InitOtel()
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
@@ -75,6 +76,11 @@ func main() {
 		<-sigCh
 		logger.Info("Shutting down gracefully...")
 		cancel()
+	}()
+
+	go func() {
+		logger.Info("Started gRPC server on port ", conf.GrpcPort)
+		grpc.Run(dbh, conf.GrpcPort, conf)
 	}()
 
 	if err := r.Start(fmt.Sprintf("%v:%v", conf.ListenAddress, conf.ListenPort)); err != nil {

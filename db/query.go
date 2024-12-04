@@ -19,6 +19,10 @@ func NewID() primitive.ObjectID {
 	return primitive.NewObjectIDFromTimestamp(time.Now())
 }
 
+func GetIngredientCollection(client *mongo.Client) *mongo.Collection {
+	return client.Database("inventory").Collection("ingredient")
+}
+
 // GetAll retrieves all ingredients for a user
 func GetAll(l *logrus.Entry, client *mongo.Client, userId string) ([]UserInventory, error) {
 	collection := GetIngredientCollection(client)

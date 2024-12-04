@@ -81,7 +81,7 @@ func initMeterProvider() *metric.MeterProvider {
 	return mp
 }
 
-func InitOtel() (*trace.TracerProvider, error) {
+func InitOtel() *trace.TracerProvider {
 	tp := initTracerProvider()
 	loggerProvider := initLoggerProvider()
 	meterProvider := initMeterProvider()
@@ -90,5 +90,5 @@ func InitOtel() (*trace.TracerProvider, error) {
 	global.SetLoggerProvider(loggerProvider)
 	otel.SetMeterProvider(meterProvider)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-	return tp, nil
+	return tp
 }

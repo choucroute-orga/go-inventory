@@ -138,7 +138,8 @@ func setupTest(t *testing.T) (*ApiHandler, func()) {
 
 	// Create API handler
 	conf := tests.GetDefaultConf()
-	api := NewApiHandler(client, nil, conf)
+	dbh := db.NewMongoHandler(client)
+	api := NewApiHandler(dbh, nil, conf)
 
 	// Return cleanup function
 	return api, func() {
@@ -192,10 +193,8 @@ func TestDB(t *testing.T) {
 					Quantity:     20,
 					Unit:         "g",
 				}
-
-				db.InsertOne(l, api.mongo, &i1)
-
-				ingredient, err := db.GetOne(l, api.mongo, "1", id)
+				api.dbh.InsertOneUserInventory(l, &i1)
+				ingredient, err := api.dbh.GetOneUserInventory(l, i1.UserID, i1.IngredientID)
 
 				// Err should be nil
 				if err != nil {
@@ -210,8 +209,8 @@ func TestDB(t *testing.T) {
 				// Test the update
 				i1.Quantity = 40
 				i1.Name = "UserInventory 1 Modified"
-				db.UpdateOne(l, api.mongo, &i1)
-				i, err := db.GetOne(l, api.mongo, "1", id)
+				api.dbh.UpdateOneUserInventory(l, &i1)
+				i, err := api.dbh.GetOneUserInventory(l, i1.UserID, i1.IngredientID)
 
 				if err != nil {
 					t.Errorf("Expected nil, got %v", err)
@@ -246,15 +245,15 @@ func TestDB(t *testing.T) {
 					Quantity:     20,
 					Unit:         "g",
 				}
-				_, err := db.InsertOne(l, api.mongo, &i)
+				_, err := api.dbh.InsertOneUserInventory(l, &i)
 				if err != nil {
 					t.Errorf("Expected nil, got %v", err)
 				}
-				err = db.DeleteOne(l, api.mongo, i.UserID, i.IngredientID)
+				err = api.dbh.DeleteOneUserInventory(l, i.UserID, i.IngredientID)
 				if err != nil {
 					t.Errorf("Expected nil, got %v", err)
 				}
-				_, err = db.GetOne(l, api.mongo, i.UserID, i.IngredientID)
+				_, err = api.dbh.GetOneUserInventory(l, i.UserID, i.IngredientID)
 				if err != mongo.ErrNoDocuments {
 					t.Errorf("Expected mongo.ErrNoDocuments, got %v", err)
 				}
@@ -370,9 +369,9 @@ func TestDB(t *testing.T) {
 					Unit:         "kg",
 				}
 
-				db.InsertOne(l, api.mongo, r1)
-				db.InsertOne(l, api.mongo, r2)
-				db.InsertOne(l, api.mongo, r3)
+				api.dbh.InsertOneUserInventory(l, r1)
+				api.dbh.InsertOneUserInventory(l, r2)
+				api.dbh.InsertOneUserInventory(l, r3)
 				ctx := context.Background()
 				iSl := *api.createShoppingList(ctx, l, addRecipe)
 
@@ -401,251 +400,3 @@ func TestDB(t *testing.T) {
 		})
 	}
 }
-
-/*
-
-// You can use testing.T, if you want to test the code without benchmarking
-func setupSuite(tb testing.TB) func(tb testing.TB) {
-	log.Println("setup suite")
-
-	// Return a function to teardown the test
-	return func(tb testing.TB) {
-		log.Println("teardown suite")
-	}
-}
-
-// Almost the same as the above, but this one is for single test instead of collection of tests
-func setupTest(tb testing.TB) (*ApiHandler, func(tb testing.TB)) {
-	// log.Println("setup test")
-
-	// return func(tb testing.TB) {
-	// 	log.Println("teardown test")
-	// }
-
-	// Get a random port for the test, between 1024 and 65535
-	exposedPort := fmt.Sprint(rand.Intn(65525-1024) + 1024)
-	mongo, pool, resource := tests.InitTestDocker(exposedPort)
-	conf := tests.GetDefaultConf()
-	api := NewApiHandler(mongo, nil, conf)
-	tests.SeedDatabase(mongo)
-	return api, func(tb testing.TB) {
-		tests.CloseTestDocker(mongo, pool, resource)
-	}
-}
-
-func TestDB(t *testing.T) {
-	t.Parallel()
-	teardownSuite := setupSuite(t)
-	defer teardownSuite(t)
-
-	t.Run("Insert ingredient in the DB", func(t *testing.T) {
-		logrus.SetLevel(logrus.DebugLevel)
-		l := logrus.WithField("test", "Insert ingredient in the DB")
-		api, teardownTest := setupTest(t)
-
-		id := "605d9ea9d0ba48dcb11ac3a1"
-
-		i1 := db.UserInventory{
-			ID:           db.NewID(),
-			UserID:       "1",
-			IngredientID: id,
-			Name:         "UserInventory 1",
-			Quantity:     20,
-			Unit:         "g",
-		}
-
-		db.InsertOne(l, api.mongo, &i1)
-
-		ingredient, err := db.GetOne(l, api.mongo, "1", id)
-
-		// Err should be nil
-		if err != nil {
-			t.Errorf("Expected nil, got %v", err)
-		}
-
-		// Check if the ingredient is correct
-		if ingredient.Quantity != 20 {
-			t.Errorf("Expected 20, got %f", ingredient.Quantity)
-		}
-
-		// Test the update
-		i1.Quantity = 40
-		i1.Name = "UserInventory 1 Modified"
-		db.UpdateOne(l, api.mongo, &i1)
-		i, err := db.GetOne(l, api.mongo, "1", id)
-
-		if err != nil {
-			t.Errorf("Expected nil, got %v", err)
-		}
-		// Ensure the update was successful
-		if i.Quantity != 40 {
-			t.Errorf("Expected 40, got %f", i.Quantity)
-		}
-		if i.Unit != "g" {
-			t.Errorf("Expected g, got %s", i.Unit)
-		}
-		if i.IngredientID != id {
-			t.Errorf("Expected %s, got %s", id, i.IngredientID)
-		}
-		if i.Name != "UserInventory 1 Modified" {
-			t.Errorf("Expected UserInventory 1, got %s", i.Name)
-		}
-
-		defer teardownTest(t)
-	})
-
-	t.Run("Insert ingredient and delete in the DB", func(t *testing.T) {
-		logrus.SetLevel(logrus.DebugLevel)
-		l := logrus.WithField("test", "Insert ingredient and delete in the DB")
-		api, teardownTest := setupTest(t)
-		i := db.UserInventory{
-			ID:           db.NewID(),
-			UserID:       "1",
-			IngredientID: "a65d9ea9d0ba48dcb11ac3a1",
-			Name:         "UserInventory 1",
-			Quantity:     20,
-			Unit:         "g",
-		}
-		_, err := db.InsertOne(l, api.mongo, &i)
-		if err != nil {
-			t.Errorf("Expected nil, got %v", err)
-		}
-		err = db.DeleteOne(l, api.mongo, i.UserID, i.IngredientID)
-		if err != nil {
-			t.Errorf("Expected nil, got %v", err)
-		}
-		_, err = db.GetOne(l, api.mongo, i.UserID, i.IngredientID)
-		if err == nil {
-			t.Errorf("Expected error, got nil")
-		}
-		defer teardownTest(t)
-	})
-
-	t.Run("Check conversion to base unit", func(t *testing.T) {
-		_, teardownTest := setupTest(t)
-		res, err := ConvertToBaseUnit(0.5, "kg")
-		if err != nil {
-			t.Errorf("Expected nil, got %v", err)
-		}
-		if res.Quantity != 500 && res.Unit != "g" {
-			t.Errorf("Expected 500g, got %f%s", res.Quantity, res.Unit)
-		}
-
-		res, err = ConvertToBaseUnit(0.5, "l")
-		if err != nil {
-			t.Errorf("Expected nil, got %v", err)
-		}
-		if res.Quantity != 500 && res.Unit != "ml" {
-			t.Errorf("Expected 500ml, got %f%s", res.Quantity, res.Unit)
-		}
-		res, err = ConvertToBaseUnit(3, "is")
-		if err != nil {
-			t.Errorf("Expected nil, got %v", err)
-		}
-		if res.Quantity != 3 && res.Unit != "i" {
-			t.Errorf("Expected 3i, got %f%s", res.Quantity, res.Unit)
-		}
-
-		// Check conversion with invalid unit
-		_, err = ConvertToBaseUnit(0.5, "invalid")
-		if err == nil {
-			t.Errorf("Expected error, got nil")
-		}
-
-		// Check Ratio Conversion with cs, tbsp, tsp
-		res, err = ConvertToBaseUnit(1, "cup")
-		if err != nil {
-			t.Errorf("Expected nil, got %v", err)
-		}
-		if res.Quantity != 236.588 && res.Unit != "ml" {
-			t.Errorf("Expected 236.588ml, got %f%s", res.Quantity, res.Unit)
-		}
-		defer teardownTest(t)
-	})
-
-	t.Run("Insert one Recipe in the DB", func(t *testing.T) {
-		logrus.SetLevel(logrus.DebugLevel)
-		l := logrus.WithField("test", "Insert one Recipe in the DB")
-		api, teardownTest := setupTest(t)
-
-		id1 := "325d9ea9d0ba48dcb11ac3a1"
-		id2 := "325d9ea9d0ba48dcb11ac3a2"
-		id3 := "325d9ea9d0ba48dcb11ac3a3"
-		userId := "2xezfZ"
-		addRecipe := messages.AddRecipe{
-			ID:     "1",
-			UserID: userId,
-			Ingredients: []messages.Ingredient{
-				{
-					ID:     id1,
-					Amount: 100,
-					Unit:   "g",
-				},
-				{
-					ID:     id2,
-					Amount: 1,
-					Unit:   "kg",
-				},
-				{
-					ID:     id3,
-					Amount: 2000,
-					Unit:   "g",
-				},
-				{
-					ID:     "665d9eh7iEba48dcb11ac3a4",
-					Amount: 2,
-					Unit:   "kg",
-				},
-			},
-		}
-
-		r1 := &db.UserInventory{
-			ID:           db.NewID(),
-			UserID:       userId,
-			IngredientID: id1,
-			Name:         "UserInventory 1",
-			Quantity:     20,
-			Unit:         "g",
-		}
-
-		r2 := &db.UserInventory{
-			ID:           db.NewID(),
-			UserID:       userId,
-			IngredientID: id2,
-			Name:         "UserInventory 2",
-			Quantity:     500,
-			Unit:         "g",
-		}
-
-		r3 := &db.UserInventory{
-			ID:           db.NewID(),
-			UserID:       userId,
-			IngredientID: id3,
-			Name:         "UserInventory 3",
-			Quantity:     0.70,
-			Unit:         "kg",
-		}
-
-		db.InsertOne(l, api.mongo, r1)
-		db.InsertOne(l, api.mongo, r2)
-		db.InsertOne(l, api.mongo, r3)
-		iSl := *api.createShoppingList(l, addRecipe)
-
-		// Check if the shopping list is correct
-		if len(iSl) != 4 {
-			t.Errorf("Expected 4 ingredients in the shopping list, got %d", len(iSl))
-		}
-		if iSl[0].Amount != 80 {
-			t.Errorf("Expected amount of 80, got %f", iSl[0].Amount)
-		}
-		if iSl[1].Amount != 500 {
-			t.Errorf("Expected amount of 500, got %f", iSl[1].Amount)
-		}
-		if iSl[2].Amount != 1.3 {
-			t.Errorf("Expected amount of 1.3, got %f", iSl[2].Amount)
-		}
-		defer teardownTest(t)
-	})
-
-}
-*/

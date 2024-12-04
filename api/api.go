@@ -2,26 +2,26 @@ package api
 
 import (
 	"inventory/configuration"
+	"inventory/db"
 	"inventory/validation"
 
 	"github.com/labstack/echo/v4"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
 
 type ApiHandler struct {
-	mongo      *mongo.Client
+	dbh        db.DbHandler
 	conf       *configuration.Configuration
 	amqp       *amqp.Connection
 	validation *validation.Validation
 	tracer     trace.Tracer
 }
 
-func NewApiHandler(mongo *mongo.Client, amqp *amqp.Connection, conf *configuration.Configuration) *ApiHandler {
+func NewApiHandler(dbh db.DbHandler, amqp *amqp.Connection, conf *configuration.Configuration) *ApiHandler {
 	handler := ApiHandler{
-		mongo:      mongo,
+		dbh:        dbh,
 		amqp:       amqp,
 		conf:       conf,
 		validation: validation.New(conf),

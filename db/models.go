@@ -21,8 +21,13 @@ type UserInventory struct {
 	Name         string             `bson:"name" json:"name"`
 	UserID       string             `bson:"userId" json:"userId"`
 	IngredientID string             `bson:"ingredientId" json:"ingredientId"` // Reference to the ingredient in the ingredient service
-	Quantity     float64            `bson:"quantity" json:"quantity"`
+	Quantity     float64            `bson:"quantity" json:"amount"`
 	Unit         UnitType           `bson:"unit" json:"unit"`
 	CreatedAt    time.Time          `bson:"createdAt" json:"createdAt"`
 	UpdatedAt    time.Time          `bson:"updatedAt" json:"updatedAt"`
+}
+
+// Create a String method for the UnitType
+func (u UnitType) String() string {
+	return string(u)
 }

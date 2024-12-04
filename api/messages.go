@@ -245,7 +245,7 @@ func (api *ApiHandler) publishIngredientShoppingList(l *logrus.Entry, ingredient
 // It retrieves the request of adding a recipe into the shopping list
 // It check if ingredients are in the inventory and send the ingredient to be added to the shopping list
 func (api *ApiHandler) consumeAddRecipeMessages(ctx context.Context) {
-	
+
 	l := logger.WithContext(ctx).WithField("function", "consumeAddRecipeMessages")
 
 	ch, err := messages.OpenChannel(api.amqp)
@@ -428,7 +428,7 @@ func (api *ApiHandler) processIngredient(ctx context.Context, l *logrus.Entry, u
 	ingredientQtyBase, baseUnit := res.Quantity, res.Unit
 
 	// Get user's current inventory for this ingredient
-	userItem, err := db.GetOne(l, api.mongo, userID, ingredient.ID)
+	userItem, err := api.dbh.GetOneUserInventory(l, userID, ingredient.ID)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			// User doesn't have this ingredient at all - return full amount converted
