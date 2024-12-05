@@ -6,7 +6,7 @@ import (
 	"inventory/api"
 	"inventory/configuration"
 	"inventory/db"
-	"inventory/grpc"
+	"inventory/server"
 
 	// "inventory/grpc"
 	"inventory/messages"
@@ -80,7 +80,7 @@ func main() {
 
 	go func() {
 		logger.Info("Started gRPC server on port ", conf.GrpcPort)
-		grpc.Run(dbh, conf.GrpcPort, conf)
+		server.Run(dbh, conf.GrpcPort, conf)
 	}()
 
 	if err := r.Start(fmt.Sprintf("%v:%v", conf.ListenAddress, conf.ListenPort)); err != nil {

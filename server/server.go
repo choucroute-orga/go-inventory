@@ -1,4 +1,4 @@
-package grpc
+package server
 
 import (
 	"context"
@@ -128,6 +128,7 @@ func (s *server) UpdateIngredient(ctx context.Context, in *pb.PostIngredientRequ
 		IngredientID: in.GetId(),
 		Quantity:     in.GetAmount(),
 		Unit:         res.Unit,
+		UpdatedAt:    time.Now(),
 	})
 
 	if err != nil {
@@ -150,7 +151,8 @@ func (s *server) DeleteIngredient(ctx context.Context, in *pb.DeleteIngredientRe
 func NewServer(dbh db.DbHandler, conf *configuration.Configuration) *grpc.Server {
 	s := grpc.NewServer()
 	pb.RegisterInventoryServer(s, &server{
-		dbh:        dbh,
+		dbh: dbh,
+		// TODO MOdify the validation process with buf and validate-go
 		validation: validation.New(conf),
 	})
 	return s
